@@ -1,7 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+abstract contract ReentrancyGuard {
+    uint256 private constant _NOT_ENTERED = 1;
+    uint256 private constant _ENTERED = 2;
+
+    uint256 private _status;
+
+    constructor() {
+        _status = _NOT_ENTERED;
+    }
+
+    modifier nonReentrant() {
+        require(_status != _ENTERED, "ReentrancyGuard: reentrant call");
+
+        _status = _ENTERED;
+
+        _;
+        _status = _NOT_ENTERED;
+    }
+}
 
 contract RentContract is ReentrancyGuard {
 
@@ -18,9 +36,6 @@ contract RentContract is ReentrancyGuard {
 
     address public owner;
     address payable public landlord;
-    
-    // current date
-    uint256 public today = 31;
     
     // user balances
     mapping(address => uint256) public balances;
@@ -65,7 +80,11 @@ contract RentContract is ReentrancyGuard {
         return rentContracts;
     }
 
-    function signContract(uint256 _contractId, bool _payOpNow) public payable nonReentrant {
+    function getContractsLength() public view returns (uint256) {
+        return rentContracts.length;
+    }
+
+    function signContract(uint256 _contractId, bool _payOpNow, uint8 _today) public payable nonReentrant {
         rentInfo memory _rentInfo = rentContracts[_contractId];
         require(!_rentInfo.isOccupied, "This lot is already occupied");
         
@@ -78,11 +97,11 @@ contract RentContract is ReentrancyGuard {
             payable(address(this)).transfer(OP);
             balances[msg.sender] += msg.value - OP;
         
-            _rentInfo.paymentDate = today;
+            _rentInfo.paymentDate = _today;
             _rentInfo.opPayed = true;
             
         } else {
-            _rentInfo.paymentDate = today;
+            _rentInfo.paymentDate = _today;
             _rentInfo.opDaysLeft = 10;
             _rentInfo.opAmountLeft = OP;
             
