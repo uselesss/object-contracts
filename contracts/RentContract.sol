@@ -26,7 +26,11 @@ contract RentContract is ReentrancyGuard {
     struct rentInfo {
         bool isOccupied;
         address tenant;
+        bool isAuction;
+        bool hasEnded;
         bool opPayed;
+        uint256 auctionTick;
+        uint256 auctionEndTime;
         uint256 opDaysLeft;
         uint256 opAmountLeft;
         uint256 paymentTimestamp;
@@ -85,32 +89,52 @@ contract RentContract is ReentrancyGuard {
         return rentContracts.length;
     }
 
-    function signContract(uint256 _contractId, bool _payOpNow) public payable nonReentrant {
+    function calimAuction(uint256 _contractId) external {
+        rentInfo memory _rentInfo = rentContracts[_contractId];
+        require(msg.sender == _rentInfo.tenant, "You cant claim this auction");
+        
+        _rentInfo.paymentTimestamp = block.timestamp;
+        _rentInfo.auctionEndTime = 0;
+        _rentInfo.hasEnded = true;
+        _rentInfo.opDaysLeft = 10;
+        _rentInfo.opAmountLeft = _rentInfo.monthlyPrice * 3;
+
+        rentContracts[_contractId] = _rentInfo;
+    }
+
+    function signContract(uint256 _contractId, uint256 _autcionBid, bool _payOpNow) public payable nonReentrant {
         rentInfo memory _rentInfo = rentContracts[_contractId];
         require(!_rentInfo.isOccupied, "This lot is already occupied");
         
-        uint256 OP = _rentInfo.monthlyPrice * 3;
-        
-        if (_payOpNow) {
-            // 100% предоплата
-            require(msg.value >= OP, "Wrong rent payment value");
-            
-            payable(address(this)).transfer(OP);
-            balances[msg.sender] += msg.value - OP;
-        
-            _rentInfo.paymentTimestamp = block.timestamp;
-            _rentInfo.opPayed = true;
-            
+        if (_rentInfo.isAuction) {
+            require(!_rentInfo.hasEnded, "Auction already ended");
+            require(_autcionBid >= _rentInfo.monthlyPrice + _rentInfo.auctionTick, "Bid amount too low");
+            _rentInfo.monthlyPrice = _autcionBid;
+            _rentInfo.tenant = msg.sender;
+
         } else {
-            _rentInfo.paymentTimestamp = block.timestamp;
-            _rentInfo.opDaysLeft = 10;
-            _rentInfo.opAmountLeft = OP;
+            uint256 OP = _rentInfo.monthlyPrice * 3;
             
+            if (_payOpNow) {
+                // 100% предоплата
+                require(msg.value >= OP, "Wrong rent payment value");
+                
+                payable(address(this)).transfer(OP);
+                balances[msg.sender] += msg.value - OP;
+            
+                _rentInfo.paymentTimestamp = block.timestamp;
+                _rentInfo.opPayed = true;
+                
+            } else {
+                _rentInfo.paymentTimestamp = block.timestamp;
+                _rentInfo.opDaysLeft = 10;
+                _rentInfo.opAmountLeft = OP;
+                
+            }
+            _rentInfo.isOccupied = true;
+            _rentInfo.tenant = msg.sender;
+            rentContracts[_contractId] = _rentInfo; 
         }
-        _rentInfo.isOccupied = true;
-        _rentInfo.tenant = msg.sender;
-        
-        rentContracts[_contractId] = _rentInfo;
     }
     
     function payOffOp(uint256 _contractId) public nonReentrant {
