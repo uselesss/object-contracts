@@ -29,9 +29,10 @@ contract RentContract is ReentrancyGuard {
         bool opPayed;
         uint256 opDaysLeft;
         uint256 opAmountLeft;
-        uint256 paymentDate;
+        uint256 paymentTimestamp;
         uint256 area;
         uint256 monthlyPrice;
+        string imagePath;
     }
 
     address public owner;
@@ -84,7 +85,7 @@ contract RentContract is ReentrancyGuard {
         return rentContracts.length;
     }
 
-    function signContract(uint256 _contractId, bool _payOpNow, uint8 _today) public payable nonReentrant {
+    function signContract(uint256 _contractId, bool _payOpNow) public payable nonReentrant {
         rentInfo memory _rentInfo = rentContracts[_contractId];
         require(!_rentInfo.isOccupied, "This lot is already occupied");
         
@@ -97,11 +98,11 @@ contract RentContract is ReentrancyGuard {
             payable(address(this)).transfer(OP);
             balances[msg.sender] += msg.value - OP;
         
-            _rentInfo.paymentDate = _today;
+            _rentInfo.paymentTimestamp = block.timestamp;
             _rentInfo.opPayed = true;
             
         } else {
-            _rentInfo.paymentDate = _today;
+            _rentInfo.paymentTimestamp = block.timestamp;
             _rentInfo.opDaysLeft = 10;
             _rentInfo.opAmountLeft = OP;
             
@@ -135,7 +136,7 @@ contract RentContract is ReentrancyGuard {
         
         _rentInfo.isOccupied = false;
         _rentInfo.tenant = address(0);
-        _rentInfo.paymentDate = 0;
+        _rentInfo.paymentTimestamp = 0;
         
         rentContracts[_contractId] = _rentInfo;
     }
